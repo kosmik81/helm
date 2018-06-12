@@ -46,6 +46,10 @@ This command inspects a chart (directory, file, or URL) and displays the content
 of the Charts.yaml file
 `
 
+const inspectVersionDesc = `
+This command inspects a chart (directory, file, or URL) and displays the version
+`
+
 const readmeChartDesc = `
 This command inspects a chart (directory, file, or URL) and displays the contents
 of the README file
@@ -68,10 +72,11 @@ type inspectCmd struct {
 }
 
 const (
-	chartOnly  = "chart"
-	valuesOnly = "values"
-	readmeOnly = "readme"
-	all        = "all"
+	chartOnly   = "chart"
+	versionOnly = "version"
+	valuesOnly  = "values"
+	readmeOnly  = "readme"
+	all         = "all"
 )
 
 var readmeFileNames = []string{"readme.md", "readme.txt", "readme"}
@@ -138,6 +143,25 @@ func newInspectCmd(out io.Writer) *cobra.Command {
 		},
 	}
 
+	versionSubCmd := &cobra.Command{
+		Use:   "version [CHART]",
+		Short: "shows inspect version",
+		Long:  inspectVersionDesc,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			insp.output = versionOnly
+			if err := checkArgsLength(len(args), "chart name"); err != nil {
+				return err
+			}
+			cp, err := locateChartPath(insp.repoURL, insp.username, insp.password, args[0], insp.version, insp.verify, insp.keyring,
+				insp.certFile, insp.keyFile, insp.caFile)
+			if err != nil {
+				return err
+			}
+			insp.chartpath = cp
+			return insp.run()
+		},
+	}
+
 	readmeSubCmd := &cobra.Command{
 		Use:   "readme [CHART]",
 		Short: "shows inspect readme",
@@ -157,7 +181,7 @@ func newInspectCmd(out io.Writer) *cobra.Command {
 		},
 	}
 
-	cmds := []*cobra.Command{inspectCommand, readmeSubCmd, valuesSubCmd, chartSubCmd}
+	cmds := []*cobra.Command{inspectCommand, readmeSubCmd, valuesSubCmd, chartSubCmd, versionSubCmd}
 	vflag := "verify"
 	vdesc := "verify the provenance data for this chart"
 	for _, subCmd := range cmds {
@@ -232,6 +256,14 @@ func (i *inspectCmd) run() error {
 
 	if i.output == chartOnly || i.output == all {
 		fmt.Fprintln(i.out, string(cf))
+	}
+
+	if i.output == versionOnly {
+		version, err := yaml.Marshal(chrt.Metadata.Version)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(i.out, string(version))
 	}
 
 	if (i.output == valuesOnly || i.output == all) && chrt.Values != nil {
